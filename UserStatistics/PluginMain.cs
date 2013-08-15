@@ -17,6 +17,7 @@ namespace UserStatistics
 
         private DateTime LastRefresh = DateTime.Now;
         private DateTime LastPurge = DateTime.Now;
+        private DateTime LastUpdate = DateTime.Now;
         private StatPlayer[] StatPlayers;
 
         #endregion
@@ -28,7 +29,6 @@ namespace UserStatistics
         public override string   Author  { get { return "Snirk Immington"; } }
         public override string Description { get { return "I'mSoOCDRight"; } }
         public override Version Version  { get { return new Version(1, 0); } }
-        public PlugMain(Main game) : base(game) { Order = 2; Config.Setup(); }
 
         #endregion
 
@@ -39,14 +39,15 @@ namespace UserStatistics
         {
             StatPlayers = new StatPlayer[255];
 
-            // Set up database
+            ConfigObject.Setup(); // Affects utils object.
+            Database.SetupDB();
 
             GameHooks.Update += OnUpdate;
             NetHooks.GreetPlayer += OnGr;
             ServerHooks.Leave += OnLeave;
 
             #region StartupPurge
-            if (Config.PurgeOnStartup)
+            if (Utils.Config.PurgeOnStartup)
             {
                 Console.WriteLine("UserStatistics is purging the database of old entries...");
                 // TODO log
@@ -67,15 +68,15 @@ namespace UserStatistics
                 GameHooks.Update -= OnUpdate;
                 ServerHooks.Leave -= OnLeave;
                 NetHooks.GreetPlayer -= OnGr;
-                // TODO save database
+                SaveDatabase();
             }
             base.Dispose(disposing);
         }
         private void OnFail(object e, UnhandledExceptionEventArgs a)
         {
-            if (a.IsTerminating)
-            { } // TODO save database
+            if (a.IsTerminating) SaveDatabase();
         }
+        public PlugMain(Main game) : base(game) { Order = 2; }
 
         #endregion
 
@@ -92,7 +93,7 @@ namespace UserStatistics
             StatPlayers[who].LogOut();
             StatPlayers[who] = null;
         }
-        public void OnUpdate()
+        private void OnUpdate()
         {
             #region Refresh Login Stuff
             if ((DateTime.Now - LastRefresh).Seconds >= 2)
@@ -106,29 +107,43 @@ namespace UserStatistics
                         if (StatPlayers[i].ExpectedID != TShock.Players[i].UserID)
                         {
                             // Log the player in.
-                            StatPlayers[i].LogOut();
-                            StatPlayers[i].LogIn(); // TODO implement
-                        }
-                        else
-                        {
-                            StatPlayers[i].UpdateSession();
+                            if (StatPlayers[i].ExpectedID != -1) StatPlayers[i].LogOut();
+
+                            StatPlayers[i].LogIn();
+                            Utils.Log("Logged in user {0} to statistics database".SFormat(TShock.Players[i].UserAccountName));
                         }
                     }
                 }
             }
             #endregion
 
+            #region Update Stats stuff
+
+            if ((DateTime.Now - LastUpdate).TotalMinutes >= 5)
+            {
+                LastUpdate = DateTime.Now;
+
+                for (int i = 0; i < 255; i++)
+                {
+                    if (StatPlayers[i] != null && StatPlayers[i].ExpectedID == TShock.Players[i].UserID)
+                        StatPlayers[i].UpdateSession();
+                }
+            }
+
+            #endregion
+
             #region Do a purge
 
-            if (Config.EnableOldAccountPurge && (DateTime.Now - LastPurge).Minutes >= Config.PurgeCheckDelay)
-            {LastPurge = DateTime.Now;
+            if (Utils.Config.EnableOldAccountPurge && (DateTime.Now - LastPurge).Minutes >= Utils.Config.PurgeCheckDelay)
+            {
+                LastPurge = DateTime.Now;
 
                 TSPlayer.All.SendInfoMessage("User Statistics is purging the database of old user accounts...");
                 Utils.Log("Purge: Purge occured at the config-set purge interval.");
                 int ret = Utils.DatabasePurge();
                 TSPlayer.All.SendInfoMessage("Database purge complete.");
 
-                if (Config.AdminLogPurgeStatsAndErrors)
+                if (Utils.Config.AdminLogPurgeStatsAndErrors)
                 {
                     if (ret == -1)
                     {
@@ -151,13 +166,14 @@ namespace UserStatistics
 
         #region Commands
 
-        public static void PurgeCommand(CommandArgs com)
+        public void PurgeCommand(CommandArgs com)
         {
-            if (!Config.CreateSuperadminPurgeCommand)
+            #region Various Failures
+            if (!Utils.Config.CreateSuperadminPurgeCommand)
             {
                 com.Player.SendErrorMessage("Config has been changed to prevent this command! Will not appear with restart."); return;
             }
-            if (!Config.EnableOldAccountPurge)
+            if (!Utils.Config.EnableOldAccountPurge)
             {
                 com.Player.SendErrorMessage("Config allows for purge command and not purge itself!"); return;
             }
@@ -167,10 +183,13 @@ namespace UserStatistics
                 com.Player.SendInfoMessage("This command is not to be executed accidentally. To use it, you must type \"/purge confirm\" for safety.");
                 return;
             }
-            
+            #endregion
+
             com.Player.SendInfoMessage("Purging the user database...");
-            // Perform a purge
+
+            LastPurge = DateTime.Now;
             Utils.Log("Purge: {0} executed /purge.".SFormat(com.Player.Name));
+
             int purged = Utils.DatabasePurge();
             if (purged != -1)
             {
@@ -179,20 +198,80 @@ namespace UserStatistics
             }
             else com.Player.SendErrorMessage("Error in the purge!");
         }
-        public static void SelfInfo(CommandArgs com)
+
+        /*
+        public void SelfInfo(CommandArgs com)
         {
             com.Player.SendInfoMessage("Account statistics for {0}:".SFormat(com.Player.UserAccountName));
             com.Player.SendSuccessMessage("Registered {0} | Member for {1}");
 
-            if (Config.UserInfoIncludesWhetherAccountIsSafe)
+            if (Utils.Config.UserInfoIncludesWhetherAccountIsSafe && Utils.Config.EnableOldAccountPurge)
             {
-                bool isSafe = false;
+                if (Utils.IsSafe(StatPlayers[com.Player.Index].StatInfo))
+                    com.Player.SendSuccessMessage("Your account is protected from User Statistics' old account purging.");
+
+                else
+                {
+                    if (Utils.Config.EnableTimeBasedPurges)
+                        com.Player.SendInfoMessage("User Statistics may remove this account if you are inactive for {0}{1}."
+                            .SFormat(Utils.Config.PurgeAfterInactiveTime.ToDisplayString(),
+                            Config.ProtectPurgeIfLongtimeUser ? ", or if your total login time is greater than "+Utils.Config.LongtimeUserLength : ""));
+
+
+                    var reasons = new List<string>();
+
+                    if (Utils.Config.EnableTimeBasedPurges) reasons.Add("you are inactive for " + Utils.Config.PurgeAfterInactiveTime.ToDisplayString());
+                    if (Utils.Config.ProtectPurgeIfLongtimeUser) reasons.Add("you are online for a total of " + Utils.Config.LongtimeUserLength.ToDisplayString());
+                }
+
             }
         }
+        */ // To-be-implemented command with nice syntax.
+
         public static void ReloadConfig(CommandArgs com)
         {
-            Config.Setup();
-            com.Player.SendInfoMessage("Reloaded the User Statistics config file!");
+            ConfigObject.Setup();
+            com.Player.SendInfoMessage("Reloaded the User Statistics config file.");
+        }
+
+        public void UserInfo(CommandArgs com)
+        {
+            if (com.Parameters.Count == 0)
+            {
+                com.Player.SendErrorMessage("Usage: /userstats (/us) <player> - gets the User Statistics data of the player's account!"); return;
+            }
+
+            var ply = TShock.Utils.FindPlayer(string.Join(" ", com.Parameters));
+
+            if (ply.Count != 1) { com.Player.SendErrorMessage(ply.Count + " players matched!"); return; }
+
+            if (!ply[0].IsLoggedIn) { com.Player.SendErrorMessage(ply[0].Name + " is not logged in."); return; }
+
+            if (Utils.Config.PreventAdminSpyingOnAdminUserData && ply[0].Group.HasPermission(Utils.Config.AdminSeeUserTimeInfoPermission))
+            { com.Player.SendErrorMessage("You are not allowed to view other admins' user statistics."); return; }
+
+            var dat = StatPlayers[ply[0].Index];
+
+            com.Player.SendInfoMessage("Account statistics for {0}:".SFormat(ply[0].UserAccountName));
+            com.Player.SendSuccessMessage("Registered {0} | Member for {1}".SFormat(dat.StatInfo.RegisterTime.ToDisplayString(), dat.StatInfo.TotalTime.ToDisplayString()));
+
+            if (Utils.Config.EnableOldAccountPurge)
+            {
+                if (Utils.IsSafe(dat.StatInfo)) com.Player.SendInfoMessage("This account is currently safe from purging.");
+                else com.Player.SendInfoMessage("This account is not safe from the old accounts purge.");
+            }
+        }
+
+        public void SaveDatabase()
+        {
+            for (int i = 0; i < 255; i++)
+            {
+                if (StatPlayers[i] != null && StatPlayers[i].ExpectedID != -1)
+                {
+                    StatPlayers[i].LogOut();
+                }
+                
+            }
         }
 
         #endregion
@@ -214,7 +293,7 @@ namespace UserStatistics
         /// <summary>
         /// The database-stored info based on userid.
         /// </summary>
-        public DBInfo StatInfo { get; set; }
+        internal DBInfo StatInfo { get; set; }
         /// <summary>
         /// Used to see last login time as well.
         /// </summary>
@@ -239,11 +318,13 @@ namespace UserStatistics
         /// </summary>
         public void LogIn()
         {
-            StatInfo = DB.GetPlayerInfo(ExpectedID);
+            ExpectedID = TShock.Players[Index].UserID;
+            StatInfo = Database.GetPlayerInfo(ExpectedID);
             StatInfo.LastLogin = DateTime.Now;
             LastCheck = DateTime.Now;
+            Database.UpdateSQL(StatInfo);
 
-            if (Config.LoginTimeGreeting)
+            if (Utils.Config.LoginTimeGreeting)
             {
                 TShock.Players[Index].SendSuccessMessage("UserStatistics: Total login time for \"{0}\" is {1}."
                     .SFormat(TShock.Players[Index].UserAccountName, StatInfo.TotalTime.ToDisplayString()));
@@ -255,7 +336,7 @@ namespace UserStatistics
         public void LogOut()
         {
             StatInfo.TotalTime += StatInfo.LastLogin - DateTime.UtcNow;
-            // Object reference, Database object is updated.
+            Database.UpdateSQL(StatInfo);
         }
 
         public void UpdateSession()
@@ -263,13 +344,15 @@ namespace UserStatistics
             StatInfo.TotalTime += DateTime.Now - LastCheck;
             LastCheck = DateTime.Now;
 
-            if (Config.ProtectPurgeIfLongtimeUser && // I love this if statement.
-                Config.NotifyUsersIfTheyDontHavePermsButPassPurgeTimeMessage != "" &&
-                !TShock.Players[Index].Group.HasPermission(Config.PurgeProtectionPermission) &&
-                StatInfo.TotalTime - Config.PurgeAfterInactiveTime > TimeSpan.Zero &&
-                StatInfo.TotalTime - Config.PurgeAfterInactiveTime < TimeSpan.FromSeconds(5))
+            // Do not do a SQL check every two seconds :/
+
+            if (Utils.Config.ProtectPurgeIfLongtimeUser && // I love this if statement.
+                Utils.Config.NotifyUsersIfTheyDontHavePermsButPassPurgeTimeMessage != "" &&
+                !TShock.Players[Index].Group.HasPermission(Utils.Config.PurgeProtectionPermission) &&
+                StatInfo.TotalTime - Utils.Config.PurgeAfterInactiveTime > TimeSpan.Zero &&
+                StatInfo.TotalTime - Utils.Config.PurgeAfterInactiveTime < TimeSpan.FromSeconds(5))
             {
-                TShock.Players[Index].SendSuccessMessage(Config.NotifyUsersIfTheyDontHavePermsButPassPurgeTimeMessage);
+                TShock.Players[Index].SendSuccessMessage(Utils.Config.NotifyUsersIfTheyDontHavePermsButPassPurgeTimeMessage);
             }
         }
     }

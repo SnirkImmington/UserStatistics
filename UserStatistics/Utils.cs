@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using TShockAPI;
+using System.IO;
 
 namespace UserStatistics
 {
@@ -10,9 +11,13 @@ namespace UserStatistics
     {
         #region Objects
 
-        public static string ConfigPath { get; }
-        public static string DatabasePath { get; }
-        public static string LogPath { get; }
+        public static string ConfigPath { get { return Path.Combine(TShock.SavePath, "User Statistics Configuration.json"); } }
+        public static string DatabasePath { get { return Path.Combine(TShock.SavePath, "User Statistics.sqlite"); } }
+        public static string LogPath { get { return Path.Combine(TShock.SavePath, "User Statistics Log.txt"); } }
+
+        private static StreamWriter LogWriter;
+
+        public static ConfigObject Config { get; set; }
 
         #endregion
 
@@ -26,9 +31,9 @@ namespace UserStatistics
             try
             {
                 int turn = 0;
-                foreach (var info in DB.Infos)
+                foreach (var info in Database.Infos)
                 {
-                    var count = TShock.Users.GetUserByID(info.AccountID);
+                    var count = TShock.Users.GetUserByID(info.UserID);
                     if (Utils.IsSafe(info, count)) continue;
 
                     // So... it has come to this.
@@ -36,9 +41,10 @@ namespace UserStatistics
                         .SFormat(count.Name, count.ID, count.Address, count.Group, info.RegisterTime.ToDisplayString(),
                         info.LastLogin.ToDisplayString(), info.TotalTime.ToDisplayString()));
                     TShock.Users.RemoveUser(count);
-                    DB.Infos.Remove(info);
+                    Database.Infos.Remove(info);
                     turn++;
                 }
+                Log("Purge: removed {0} accounts.".SFormat(turn));
                 return turn;
             }
             catch (Exception ex)
@@ -50,7 +56,7 @@ namespace UserStatistics
         public static bool IsSafe(DBInfo info, TShockAPI.DB.User acct = null)
         {
             // Copy account.
-            if (acct == null) acct = TShock.Users.GetUserByID(info.AccountID);
+            if (acct == null) acct = TShock.Users.GetUserByID(info.UserID);
 
             // I love these long config value names.
             if (Config.ProtectPurgeIfLongtimeUser &&
@@ -65,7 +71,25 @@ namespace UserStatistics
 
         public static void Log(string info)
         {
-            // DateTime.Now.ToString() - info
+            try
+            {
+                // DateTime.Now.ToString() - info
+                LogWriter.WriteLine("[" + DateTime.Now.ToShortTimeString() + "] " + info);
+            }
+            catch (Exception ex)
+            {
+                TSPlayer.Server.SendErrorMessage("User statistics logging problem: " + ex.ToString());
+            }
+        }
+
+        public static void InitializeLog()
+        {
+            if (!File.Exists(LogPath)) File.Create(LogPath); 
+
+            LogWriter = new StreamWriter(File.Open(LogPath, FileMode.Append));
+
+            LogWriter.WriteLine("--|--|--|--|--|-- Beginning of log for {0} --|--|--|--|--|--", DateTime.Now.ToShortDateString());
+            LogWriter.WriteLine();
         }
 
         #endregion

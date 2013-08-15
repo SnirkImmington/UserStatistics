@@ -1,38 +1,41 @@
 ﻿using System;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.IO;
 
 namespace UserStatistics
 {
-    static class Config
+    class ConfigObject
     {
         #region Properties
 
-        public static bool EnableOldAccountPurge = false;
-        public static int PurgeCheckDelay = 60;
-        public static bool PurgeOnStartup = false;
+        public bool EnableOldAccountPurge = false;
+        public int PurgeCheckDelay = 60;
+        public bool PurgeOnStartup = false;
 
-        public static bool CreateSuperadminPurgeCommand = false;
-        public static bool AdminLogPurgeStatsAndErrors = false;
+        public bool CreateSuperadminPurgeCommand = false;
+        public bool AdminLogPurgeStatsAndErrors = false;
 
-        public static bool EnableTimeBasedPurges = true;
-        public static TimeSpan PurgeAfterInactiveTime = new TimeSpan(30, 0, 0, 0); // 30 days
+        public bool EnableTimeBasedPurges = true;
+        public TimeSpan PurgeAfterInactiveTime = new TimeSpan(30, 0, 0, 0); // 30 days
 
-        public static bool ProtectPurgeIfLongtimeUser = false;
-        public static TimeSpan LongtimeUserLength = new TimeSpan(12, 0, 0); // 12 hours logged in
+        public bool ProtectPurgeIfLongtimeUser = false;
+        public TimeSpan LongtimeUserLength = new TimeSpan(12, 0, 0); // 12 hours logged in
 
-        public static string NotifyUsersIfTheyDontHavePermsButPassPurgeTimeMessage = "";
+        public string NotifyUsersIfTheyDontHavePermsButPassPurgeTimeMessage = "";
         //public static string LoginGreetingMessage = "Welcome back, {0}. You last logged in at {1}, and your account {2} be purged if you don't check in every {3}.";
 
-        public static string PurgeProtectionPermission = "dontpurge";
+        public string PurgeProtectionPermission = "dontpurge";
 
-        public static string SeeUserTimeInfo = TShockAPI.Permissions.userinfo;
-        public static string SeeSelfTimeInfo = "mytime";
-        public static bool UserInfoIncludesWhetherAccountIsSafe = false;
+        public string AdminSeeUserTimeInfoPermission = TShockAPI.Permissions.userinfo;
+        public bool PreventAdminSpyingOnAdminUserData = false;
+        public string SeeSelfTimeInfoPermission = "mytime";
 
-        public static bool LoginTimeGreeting = false;
+        public bool UserInfoIncludesWhetherAccountIsSafe = false;
+
+        public bool LoginTimeGreeting = false;
 
         #endregion
 
@@ -40,10 +43,21 @@ namespace UserStatistics
 
         public static void Setup()
         {
-        }
-
-        public static void Save()
-        {
+            try
+            {
+                if (!File.Exists(Utils.ConfigPath))
+                {
+                    File.WriteAllText(Utils.ConfigPath, JsonConvert.SerializeObject(new ConfigObject()));
+                }
+                else
+                {
+                    Utils.Config = JsonConvert.DeserializeObject<ConfigObject>(File.ReadAllText(Utils.ConfigPath));
+                }
+            }
+            catch (Exception ex)
+            {
+                TShockAPI.Log.Error("Failed to set up database: " + ex.ToString());
+            }
         }
 
         #endregion
