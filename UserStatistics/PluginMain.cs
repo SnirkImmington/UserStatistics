@@ -47,7 +47,7 @@ namespace UserStatistics
             NetHooks.GreetPlayer += OnGr;
             ServerHooks.Leave += OnLeave;
 
-            #region StartupPurge
+            #region StartupPurge Settings
             if (Utils.Config.PurgeOnStartup)
             {
                 Console.WriteLine("UserStatistics is purging the database of old entries...");
@@ -58,6 +58,17 @@ namespace UserStatistics
                 if (@return == -1) TSPlayer.Server.SendErrorMessage("The user database purge has failed!");
                 else Console.WriteLine("Removed {0} users from the user database.");
             }
+            #endregion
+
+            #region Creation of Commands
+
+            if (Utils.Config.EnableTimeBasedPurges && Utils.Config.CreatePurgeCommand)
+            {
+                Commands.ChatCommands.Add(new Command(Utils.Config.PurgeCommandPermission, PurgeCommand, "purge"));
+                Commands.ChatCommands.Add(new Command(Utils.Config.AdminSeeUserTimeInfoPermission, UserInfo, "userstats", "us"));
+                Commands.ChatCommands.Add(new Command(Utils.Config.AdminReloadConfigCommmandPermission, ReloadConfig, "statsreload"));
+            }
+
             #endregion
 
             AppDomain.CurrentDomain.UnhandledException += OnFail;
@@ -170,7 +181,7 @@ namespace UserStatistics
         public void PurgeCommand(CommandArgs com)
         {
             #region Various Failures
-            if (!Utils.Config.CreateSuperadminPurgeCommand)
+            if (!Utils.Config.CreatePurgeCommand)
             {
                 com.Player.SendErrorMessage("Config has been changed to prevent this command! Will not appear with restart."); return;
             }

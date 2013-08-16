@@ -15,7 +15,8 @@ namespace UserStatistics
         public int PurgeCheckDelay = 60;
         public bool PurgeOnStartup = false;
 
-        public bool CreateSuperadminPurgeCommand = false;
+        public bool CreatePurgeCommand = false;
+        public string PurgeCommandPermission = "*";
         public bool AdminLogPurgeStatsAndErrors = false;
 
         public bool EnableTimeBasedPurges = true;
@@ -30,6 +31,7 @@ namespace UserStatistics
         public string PurgeProtectionPermission = "dontpurge";
 
         public string AdminSeeUserTimeInfoPermission = TShockAPI.Permissions.userinfo;
+        public string AdminReloadConfigCommmandPermission = TShockAPI.Permissions.maintenance;
         public bool PreventAdminSpyingOnAdminUserData = false;
         public string SeeSelfTimeInfoPermission = "mytime";
 
@@ -47,7 +49,7 @@ namespace UserStatistics
             {
                 if (!File.Exists(Utils.ConfigPath))
                 {
-                    File.WriteAllText(Utils.ConfigPath, JsonConvert.SerializeObject(new ConfigObject()));
+                    File.WriteAllText(Utils.ConfigPath, JsonConvert.SerializeObject(new ConfigObject(), Formatting.Indented));
                 }
                 else
                 {
