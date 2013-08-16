@@ -30,7 +30,10 @@ namespace UserStatistics
             var turn = Infos.FirstOrDefault(i => i.UserID == ID);
 
             if (turn == null)
-                return new DBInfo(ID);
+            {
+                turn = new DBInfo(ID);
+                AddSQL(turn);
+            }
 
             return turn;
         }
@@ -67,7 +70,7 @@ namespace UserStatistics
                 (IQueryBuilder)new SqliteQueryCreator() : new MysqlQueryCreator());
 
             creator.EnsureExists(new SqlTable("Statistics",
-                new SqlColumn("UserID", MySqlDbType.Int16) { Primary = true },
+                new SqlColumn("UserID", MySqlDbType.Int32),
                 new SqlColumn("RegisterTime", MySqlDbType.Text),
                 new SqlColumn("LastLogin", MySqlDbType.Text),
                 new SqlColumn("TotalTime", MySqlDbType.Text)));
@@ -140,7 +143,7 @@ namespace UserStatistics
         public DBInfo(int ID)
         {
             UserID = ID;
-            RegisterTime = DateTime.UtcNow;
+            RegisterTime = DateTime.Now;
         }
         public DBInfo() { } // Constructor for DB
     }

@@ -41,6 +41,7 @@ namespace UserStatistics
 
             ConfigObject.Setup(); // Affects utils object.
             Database.SetupDB();
+            Utils.InitializeLog();
 
             GameHooks.Update += OnUpdate;
             NetHooks.GreetPlayer += OnGr;
@@ -335,7 +336,7 @@ namespace UserStatistics
         /// </summary>
         public void LogOut()
         {
-            StatInfo.TotalTime += StatInfo.LastLogin - DateTime.UtcNow;
+            StatInfo.TotalTime += StatInfo.LastLogin - DateTime.Now;
             Database.UpdateSQL(StatInfo);
         }
 
@@ -344,13 +345,13 @@ namespace UserStatistics
             StatInfo.TotalTime += DateTime.Now - LastCheck;
             LastCheck = DateTime.Now;
 
-            // Do not do a SQL check every two seconds :/
+            Database.UpdateSQL(StatInfo);
 
             if (Utils.Config.ProtectPurgeIfLongtimeUser && // I love this if statement.
                 Utils.Config.NotifyUsersIfTheyDontHavePermsButPassPurgeTimeMessage != "" &&
                 !TShock.Players[Index].Group.HasPermission(Utils.Config.PurgeProtectionPermission) &&
                 StatInfo.TotalTime - Utils.Config.PurgeAfterInactiveTime > TimeSpan.Zero &&
-                StatInfo.TotalTime - Utils.Config.PurgeAfterInactiveTime < TimeSpan.FromSeconds(5))
+                StatInfo.TotalTime - Utils.Config.PurgeAfterInactiveTime < TimeSpan.FromMinutes(8))
             {
                 TShock.Players[Index].SendSuccessMessage(Utils.Config.NotifyUsersIfTheyDontHavePermsButPassPurgeTimeMessage);
             }

@@ -41,6 +41,7 @@ namespace UserStatistics
                         .SFormat(count.Name, count.ID, count.Address, count.Group, info.RegisterTime.ToDisplayString(),
                         info.LastLogin.ToDisplayString(), info.TotalTime.ToDisplayString()));
                     TShock.Users.RemoveUser(count);
+                    Database.DelSQL(info.UserID);
                     Database.Infos.Remove(info);
                     turn++;
                 }
@@ -101,7 +102,7 @@ namespace UserStatistics
         /// </summary>
         public static string ToSQLString(this DateTime time)
         {
-            return time.ToString("dd/MM/yy, hh:mm");
+            return time.ToString("dd|MM|yy, hh:mm");
         }
         /// <summary>
         /// Creates a DateTime from serialized form in the SQL database.
@@ -113,13 +114,13 @@ namespace UserStatistics
             var parseComma = input.Split(',');
             // dd/mm/yy = pc[0] // hh:mm = pc[1]
 
-            var dmy = parseComma[0].Trim().Split('/');
+            var dmy = parseComma[0].Trim().Split('|');
             // dd = 0, MM = 1, yy = 2
 
             var hm = parseComma[1].Trim().Split(':');
             // hh = o, mm = 1
 
-            if (dmy[2].Length != 4) dmy[2] = "20" + dmy[2];
+            if (dmy[2].Trim().Length != 4) dmy[2] = "20" + dmy[2].Trim();
 
             int day, month, year, hour, min;
 
