@@ -39,6 +39,8 @@ namespace UserStatistics
 
         public bool LoginTimeGreeting = false;
 
+        public string[] WhitelistAccounts = new string[] { };
+
         #endregion
 
         #region Setup

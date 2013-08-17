@@ -15,8 +15,6 @@ namespace UserStatistics
         public static string DatabasePath { get { return Path.Combine(TShock.SavePath, "User Statistics.sqlite"); } }
         public static string LogPath { get { return Path.Combine(TShock.SavePath, "User Statistics Log.txt"); } }
 
-        private static StreamWriter LogWriter;
-
         public static ConfigObject Config { get; set; }
 
         #endregion
@@ -28,6 +26,7 @@ namespace UserStatistics
         /// </summary>
         public static int DatabasePurge()
         {
+            Utils.Log("Executing database purge...");
             try
             {
                 int turn = 0;
@@ -50,7 +49,7 @@ namespace UserStatistics
             }
             catch (Exception ex)
             {
-                Log("Exception while purging! " + ex.ToString()); return -1;
+                Log("Error while purging! " + ex.ToString()); return -1;
             }
         }
 
@@ -65,7 +64,8 @@ namespace UserStatistics
                 (TShock.Groups.GetGroupByName(acct.Group)
                 .HasPermission(Config.PurgeProtectionPermission)) ||
                 (Config.EnableTimeBasedPurges && Config.PurgeAfterInactiveTime
-                < DateTime.Now - info.LastLogin)) return false;
+                < DateTime.Now - info.LastLogin) ||
+                Config.WhitelistAccounts.Contains(acct.Name)) return false;
 
             return true;
         }
@@ -75,7 +75,7 @@ namespace UserStatistics
             try
             {
                 // DateTime.Now.ToString() - info
-                LogWriter.WriteLine("[" + DateTime.Now.ToShortTimeString() + "] " + info);
+                File.AppendAllText(LogPath, "[" + DateTime.Now.ToShortTimeString() + "] " + info + Environment.NewLine);
             }
             catch (Exception ex)
             {
@@ -87,10 +87,8 @@ namespace UserStatistics
         {
             if (!File.Exists(LogPath)) File.Create(LogPath); 
 
-            LogWriter = new StreamWriter(File.Open(LogPath, FileMode.Append));
-
-            LogWriter.WriteLine("--|--|--|--|--|-- Beginning of log for {0} --|--|--|--|--|--", DateTime.Now.ToShortDateString());
-            LogWriter.WriteLine();
+            File.AppendAllText(LogPath, "--|--|--|--|--|-- Beginning of log for {0} --|--|--|--|--|--"
+                .SFormat(DateTime.Now.ToDisplayString())+Environment.NewLine+Environment.NewLine);
         }
 
         #endregion
@@ -139,7 +137,7 @@ namespace UserStatistics
         {
             //return time.ToString(@"hh\:mm on dd/mm/yy");
             //return string.Format("{0} {1} at {3}:{4}",
-            return time.ToString("MMM dd at hh:mm");
+            return time.ToString("MMM dd") + " at " + time.ToString("hh:mm");
                 
         }
         /// <summary>

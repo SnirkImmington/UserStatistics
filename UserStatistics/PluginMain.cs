@@ -39,7 +39,7 @@ namespace UserStatistics
         {
             StatPlayers = new StatPlayer[255];
 
-            ConfigObject.Setup(); // Affects utils object.
+            ConfigObject.Setup();
             Database.SetupDB();
             Utils.InitializeLog();
 
@@ -62,12 +62,17 @@ namespace UserStatistics
 
             #region Creation of Commands
 
-            if (Utils.Config.EnableTimeBasedPurges && Utils.Config.CreatePurgeCommand)
-            {
+            if (Utils.Config.EnableTimeBasedPurges && Utils.Config.PurgeCommandPermission != "")
                 Commands.ChatCommands.Add(new Command(Utils.Config.PurgeCommandPermission, PurgeCommand, "purge"));
-                Commands.ChatCommands.Add(new Command(Utils.Config.AdminSeeUserTimeInfoPermission, UserInfo, "userstats", "us"));
+                
+            if (Utils.Config.AdminReloadConfigCommmandPermission != "")
                 Commands.ChatCommands.Add(new Command(Utils.Config.AdminReloadConfigCommmandPermission, ReloadConfig, "statsreload"));
-            }
+
+            if (Utils.Config.AdminSeeUserTimeInfoPermission != "")
+                Commands.ChatCommands.Add(new Command(Utils.Config.AdminSeeUserTimeInfoPermission, UserInfo, "userstats", "us"));
+
+            if (Utils.Config.SeeSelfTimeInfoPermission != "")
+                Commands.ChatCommands.Add(new Command(Utils.Config.SeeSelfTimeInfoPermission, SelfInfoCom, "mystats") { AllowServer = false });
 
             #endregion
 
@@ -86,7 +91,7 @@ namespace UserStatistics
         }
         private void OnFail(object e, UnhandledExceptionEventArgs a)
         {
-            if (a.IsTerminating) SaveDatabase();
+            if (a.IsTerminating) SaveDatabase(); 
         }
         public PlugMain(Main game) : base(game) { Order = 2; }
 
@@ -102,7 +107,8 @@ namespace UserStatistics
         }
         private void OnLeave(int who)
         {
-            StatPlayers[who].LogOut();
+            // Dayum, that exception happened.
+            if (StatPlayers[who] != null) StatPlayers[who].LogOut();
             StatPlayers[who] = null;
         }
         private void OnUpdate()
@@ -206,9 +212,16 @@ namespace UserStatistics
             if (purged != -1)
             {
                 com.Player.SendSuccessMessage("Removed {0} accounts!".SFormat(purged));
-                Utils.Log("Purge: removed {0} old user accounts.".SFormat(purged));
+                //Utils.Log("Purge: removed {0} old user accounts.".SFormat(purged));
+                if (Utils.Config.AdminLogPurgeStatsAndErrors)
+                    TShock.Utils.SendLogs("{0} used /purge, purged {1} accounts.".SFormat(com.Player.Name, purged), Color.Yellow);
             }
-            else com.Player.SendErrorMessage("Error in the purge!");
+            else
+            {
+                com.Player.SendErrorMessage("Error in the purge!");
+                if (Utils.Config.AdminLogPurgeStatsAndErrors)
+                    TShock.Utils.SendLogs("{0} used /purge, there was an error.".SFormat(com.Player.Name), Color.Red);
+            }
         }
 
         /*
@@ -242,6 +255,7 @@ namespace UserStatistics
 
         public static void ReloadConfig(CommandArgs com)
         {
+            Utils.Log(com.Player.Name + " used /statsreload.");
             ConfigObject.Setup();
             com.Player.SendInfoMessage("Reloaded the User Statistics config file.");
         }
@@ -267,10 +281,23 @@ namespace UserStatistics
             com.Player.SendInfoMessage("Account statistics for {0}:".SFormat(ply[0].UserAccountName));
             com.Player.SendSuccessMessage("Registered {0} | Member for {1}".SFormat(dat.StatInfo.RegisterTime.ToDisplayString(), dat.StatInfo.TotalTime.ToDisplayString()));
 
-            if (Utils.Config.EnableOldAccountPurge)
+            if (Utils.Config.EnableOldAccountPurge && Utils.Config.UserInfoIncludesWhetherAccountIsSafe)
             {
-                if (Utils.IsSafe(dat.StatInfo)) com.Player.SendInfoMessage("This account is currently safe from purging.");
-                else com.Player.SendInfoMessage("This account is not safe from the old accounts purge.");
+                if (Utils.IsSafe(dat.StatInfo)) com.Player.SendInfoMessage("This account is safe from purging.");
+                else com.Player.SendInfoMessage("This account is not extra protected from the old accounts purge - if it becomes stale, it will be gone.");
+            }
+        }
+
+        public void SelfInfoCom(CommandArgs com)
+        {
+            var dat = StatPlayers[com.Player.Index];
+            com.Player.SendInfoMessage("Account statistics for {0}:".SFormat(com.Player.UserAccountName));
+            com.Player.SendSuccessMessage("Registered {0} | Member for {1}".SFormat(dat.StatInfo.RegisterTime.ToDisplayString(), dat.StatInfo.TotalTime.ToDisplayString()));
+
+            if (Utils.Config.EnableOldAccountPurge && Utils.Config.UserInfoIncludesWhetherAccountIsSafe)
+            {
+                if (Utils.IsSafe(dat.StatInfo)) com.Player.SendInfoMessage("Your account is safe from any account purging.");
+                else com.Player.SendInfoMessage("You is not extra protected from the purge, if you abandon this account for too long it may eventually be deleted.");
             }
         }
 
