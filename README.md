@@ -5,5 +5,6 @@
 * Automatically remove old accounts!
 * Date and time a user joined and when they last logged in
 * Total time user has been on the server.
+* Everything is logged. Seperately from TShock.
 
 More information can be found in the [wiki](https://github.com/SnirkImmington/UserStatistics/wiki).
