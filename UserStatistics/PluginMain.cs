@@ -28,7 +28,7 @@ namespace UserStatistics
         public override string    Name   { get { return "User Statistics"; } }
         public override string   Author  { get { return "Snirk Immington"; } }
         public override string Description { get { return "I'mSoOCDRight"; } }
-        public override Version Version  { get { return new Version(1, 0); } }
+        public override Version Version  { get { return new Version(1, 1); } }
 
         #endregion
 

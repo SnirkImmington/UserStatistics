@@ -52,8 +52,10 @@ namespace UserStatistics
                     Sequel = new MySqlConnection()
                     {
                         ConnectionString = "Server={0}; Port={1}; Database={2}; Uid={3}, Pwd={4};"
-                            .SFormat(host[0], host.Length == 1 ? "3306" : host[1],
-                            TShock.Config.MySqlDbName, TShock.Config.MySqlUsername,
+                            .SFormat(host[0], 
+                            host.Length > 1 ? host[1] : "3306",
+                            TShock.Config.MySqlDbName, 
+                            TShock.Config.MySqlUsername,
                             TShock.Config.MySqlPassword)
                     };
                     break;
