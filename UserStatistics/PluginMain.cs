@@ -143,7 +143,7 @@ namespace UserStatistics
 
                 for (int i = 0; i < 255; i++)
                 {
-                    if (StatPlayers[i] != null && StatPlayers[i].ExpectedID == TShock.Players[i].UserID)
+                    if (StatPlayers[i] != null && StatPlayers[i].ExpectedID == TShock.Players[i].UserID && TShock.Players[i].IsLoggedIn)
                         StatPlayers[i].UpdateSession();
                 }
             }
