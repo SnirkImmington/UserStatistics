@@ -51,12 +51,12 @@ namespace UserStatistics
                     string[] host = TShock.Config.MySqlHost.Split(':');
                     Sequel = new MySqlConnection()
                     {
-                        ConnectionString = "Server={0}; Port={1}; Database={2}; Uid={3}, Pwd={4};"
-                            .SFormat(host[0], 
-                            host.Length > 1 ? host[1] : "3306",
-                            TShock.Config.MySqlDbName, 
-                            TShock.Config.MySqlUsername,
-                            TShock.Config.MySqlPassword)
+                        ConnectionString = string.Format("Server={0}; Port={1}; Database={2}; Uid={3}; Pwd={4};",
+                        host[0],
+                        host.Length == 1 ? "3306" : host[1],
+                        TShock.Config.MySqlDbName,
+                        TShock.Config.MySqlUsername,
+                        TShock.Config.MySqlPassword)
                     };
                     break;
 
